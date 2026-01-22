@@ -7,7 +7,7 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ currentTime, dataSource }) => {
-  const isLive = dataSource === 'ZEUS_NODE';
+  const isLive = dataSource === 'ZEUS_NODE' || dataSource === 'ZEUS';
   const isConnecting = dataSource === 'CONNECTING';
 
   return (

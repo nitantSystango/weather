@@ -3,33 +3,9 @@ import { WeatherLocation, ForecastHour } from '../types';
 
 // Zeus API configuration - from https://www.zeussubnet.com/hackathon
 const ZEUS_API_ENDPOINT = 'https://api.zeussubnet.com/forecast';
-// In Vite, environment variables must be prefixed with VITE_ to be accessible
-// Access via import.meta.env (Vite) or fallback to process.env (for compatibility)
-const getApiKey = () => {
-  // Try Vite env first (VITE_ prefix)
-  if ((import.meta as any).env?.VITE_ZEUS_API_KEY) {
-    return (import.meta as any).env.VITE_ZEUS_API_KEY;
-  }
-  // Try React style env
-  if ((import.meta as any).env?.REACT_APP_ZEUS_API_KEY) {
-    return (import.meta as any).env.REACT_APP_ZEUS_API_KEY;
-  }
-  // Try process.env (for SSR or other contexts)
-  if (typeof process !== 'undefined' && (process.env as any)?.REACT_APP_ZEUS_API_KEY) {
-    return (process.env as any).REACT_APP_ZEUS_API_KEY;
-  }
-  // Default fallback
-  return 'example123';
-};
-
-const ZEUS_API_KEY = getApiKey();
-
-// Log API key status (for debugging - only first 4 chars for security)
-console.log('Zeus API Key Status:', {
-  keySet: !!ZEUS_API_KEY && ZEUS_API_KEY !== 'example123',
-  keyPreview: ZEUS_API_KEY ? ZEUS_API_KEY.substring(0, 4) + '...' : 'NOT SET',
-  keyLength: ZEUS_API_KEY?.length || 0
-});
+// Hardcoded API key (using first key from provided list)
+// Available keys: R4Z945q59HJbbg5BTjjK, T4TrV8V1ax31p7p1cnVL, AwODG44sVp7Pp0MW6MG7, etc.
+const ZEUS_API_KEY = 'R4Z945q59HJbbg5BTjjK';
 
 export interface WeatherServiceResponse {
   locations: WeatherLocation[];
@@ -110,6 +86,15 @@ class WeatherService {
 
   async getWeatherByCoordinates(latitude: number, longitude: number): Promise<CoordinateWeatherResponse> {
     try {
+      // Validate coordinates are within valid ranges
+      // Latitude: -90 to 90, Longitude: -180 to 180
+      const clampedLatitude = Math.max(-90, Math.min(90, latitude));
+      const clampedLongitude = Math.max(-180, Math.min(180, longitude));
+      
+      if (Math.abs(latitude - clampedLatitude) > 0.01 || Math.abs(longitude - clampedLongitude) > 0.01) {
+        console.warn(`Coordinates clamped: (${latitude}, ${longitude}) -> (${clampedLatitude}, ${clampedLongitude})`);
+      }
+      
       // Fetch weather data from Zeus API according to documentation: https://www.zeussubnet.com/hackathon
       // We need to fetch multiple variables to calculate risk scores
       // Format time as ISO 8601 without timezone (matching sample code format: "2026-01-22T21:00:00")
@@ -125,8 +110,9 @@ class WeatherService {
       
       const now = new Date();
       const startTime = formatISO8601(now);
-      // API allows up to 24 hours from now, so request 24 hours of data
-      const endTime = formatISO8601(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+      // API allows up to 24 hours from now
+      // Use predict_hours instead of end_time to avoid parsing conflicts
+      const predictHours = 24;
 
       const variables = [
         '2m_temperature',
@@ -139,11 +125,11 @@ class WeatherService {
 
       console.log('Fetching from Zeus API:', {
         endpoint: ZEUS_API_ENDPOINT,
-        latitude,
-        longitude,
+        latitude: clampedLatitude,
+        longitude: clampedLongitude,
         startTime,
-        endTime,
-        apiKeySet: !!ZEUS_API_KEY && ZEUS_API_KEY !== 'example123'
+        predictHours,
+        apiKeySet: !!ZEUS_API_KEY
       });
 
       const controller = new AbortController();
@@ -152,11 +138,11 @@ class WeatherService {
       // Fetch all variables in parallel
       const variablePromises = variables.map(variable => {
         const params = new URLSearchParams({
-          latitude: latitude.toString(),
-          longitude: longitude.toString(),
+          latitude: clampedLatitude.toString(),
+          longitude: clampedLongitude.toString(),
           variable: variable,
           start_time: startTime,
-          end_time: endTime
+          predict_hours: predictHours.toString()
         });
         
         const url = `${ZEUS_API_ENDPOINT}?${params.toString()}`;
@@ -220,8 +206,8 @@ class WeatherService {
       // Map Zeus API response to our format
       const mappedLocation = this.mapZeusApiResponseToLocation(
         dataMap,
-        latitude,
-        longitude
+        clampedLatitude,
+        clampedLongitude
       );
 
       return {

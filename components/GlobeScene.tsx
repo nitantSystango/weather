@@ -50,9 +50,22 @@ const latLngToVector3 = (lat: number, lng: number, radius: number): THREE.Vector
 // Convert 3D point on sphere to lat/long
 const vector3ToLatLng = (point: THREE.Vector3, radius: number): { latitude: number; longitude: number } => {
   const normalized = point.clone().normalize();
-  const latitude = 90 - (Math.acos(normalized.y) * 180 / Math.PI);
-  const longitude = (Math.atan2(normalized.z, -normalized.x) * 180 / Math.PI) - 180;
-  return { latitude, longitude };
+  
+  // Calculate latitude: -90 to 90 degrees
+  const latitude = 90 - (Math.acos(Math.max(-1, Math.min(1, normalized.y))) * 180 / Math.PI);
+  
+  // Calculate longitude: -180 to 180 degrees
+  let longitude = (Math.atan2(normalized.z, -normalized.x) * 180 / Math.PI);
+  
+  // Normalize longitude to -180 to 180 range
+  while (longitude > 180) longitude -= 360;
+  while (longitude < -180) longitude += 360;
+  
+  // Clamp to valid ranges
+  const clampedLatitude = Math.max(-90, Math.min(90, latitude));
+  const clampedLongitude = Math.max(-180, Math.min(180, longitude));
+  
+  return { latitude: clampedLatitude, longitude: clampedLongitude };
 };
 
 const getRiskColor = (score: number) => {

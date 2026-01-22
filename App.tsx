@@ -15,24 +15,12 @@ const App: React.FC = () => {
   const [selectedHour, setSelectedHour] = useState(0);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [dataSource, setDataSource] = useState<'ZEUS_NODE' | 'ZEUS' | 'CONNECTING'>('CONNECTING');
+  const [dataSource, setDataSource] = useState<'ZEUS_NODE' | 'ZEUS' | 'CONNECTING'>('ZEUS');
   const [clickedCoordinates, setClickedCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isLoadingCoordinates, setIsLoadingCoordinates] = useState(false);
   
   // Refs for loop
   const intervalRef = useRef<number | null>(null);
-
-  // Initial Load
-  useEffect(() => {
-    const initData = async () => {
-      setDataSource('CONNECTING');
-      const response = await weatherService.getAllLocations();
-      setLocations(response.locations);
-      setDataSource(response.source);
-    };
-
-    initData();
-  }, []);
 
   // Playback Logic
   useEffect(() => {
@@ -56,7 +44,9 @@ const App: React.FC = () => {
 
   // Derived
   const selectedLocation = locations.find(l => l.id === selectedLocationId) || null;
-  const currentTimestamp = locations[0]?.forecast[selectedHour]?.timestamp || new Date().toISOString();
+  const currentTimestamp = selectedLocation?.forecast[selectedHour]?.timestamp || 
+                          locations[0]?.forecast[selectedHour]?.timestamp || 
+                          new Date().toISOString();
 
   // Handlers
   const handleLocationSelect = (id: string) => {
@@ -123,19 +113,19 @@ const App: React.FC = () => {
       {/* UI Overlay Layer */}
       <Header />
       
-      {/* Loading Overlay */}
-      {(dataSource === 'CONNECTING' || isLoadingCoordinates) && (
+      {/* Loading Overlay - Only show when fetching data for clicked location */}
+      {isLoadingCoordinates && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-space-950/80 backdrop-blur-sm">
            <GlassPanel className="p-8 flex flex-col items-center gap-4">
              <Loader2 className="w-10 h-10 text-accent-cyan animate-spin" />
              <div className="text-center">
                <h3 className="text-lg font-display font-bold text-white">
-                 {isLoadingCoordinates ? 'FETCHING WEATHER DATA' : 'INITIALIZING UPLINK'}
+                 FETCHING WEATHER DATA
                </h3>
                <p className="text-xs font-mono text-slate-400 mt-1">
-                 {isLoadingCoordinates 
-                   ? `Loading data for ${clickedCoordinates ? `${clickedCoordinates.latitude.toFixed(2)}°, ${clickedCoordinates.longitude.toFixed(2)}°` : 'coordinates'}...`
-                   : 'Connecting to Zeus DePIN Subnet...'}
+                 {clickedCoordinates 
+                   ? `Loading data for ${clickedCoordinates.latitude.toFixed(2)}°, ${clickedCoordinates.longitude.toFixed(2)}°...`
+                   : 'Connecting to Zeus API...'}
                </p>
              </div>
            </GlassPanel>
