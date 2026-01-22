@@ -195,8 +195,11 @@ class WeatherService {
       const dataMap: Record<string, any> = {};
       for (let i = 0; i < variables.length; i++) {
         try {
-          const data = await responses[i].json();
-          dataMap[variables[i]] = data;
+          const responseData = await responses[i].json();
+          console.log(`Parsed response for ${variables[i]}:`, responseData);
+          // The API returns the variable data directly in the response
+          // e.g., { "2m_temperature": { "data": [...], "unit": "K" }, "time": { "data": [...] } }
+          dataMap[variables[i]] = responseData;
         } catch (parseError) {
           console.error(`Failed to parse response for ${variables[i]}:`, parseError);
           throw new Error(`Failed to parse API response for ${variables[i]}`);
@@ -251,17 +254,51 @@ class WeatherService {
     lat: number,
     lng: number
   ): WeatherLocation {
-    // Get time array from any variable (they all have the same time array)
-    const timeData = dataMap['2m_temperature']?.time?.data || [];
+    // Get time array from any variable response (they all have the same time array at root level)
+    // API response format: { "2m_temperature": { "data": [...], "unit": "K" }, "time": { "data": [...] } }
+    // The time is at the root level of the response object
+    const tempResponse = dataMap['2m_temperature'];
+    const timeData = tempResponse?.time?.data || [];
     const numHours = timeData.length;
 
+    console.log('Mapping API response:', {
+      timeDataLength: timeData.length,
+      tempResponse: tempResponse,
+      sampleTime: timeData[0],
+      tempResponseKeys: tempResponse ? Object.keys(tempResponse) : []
+    });
+
     // Extract data arrays for each variable
-    const tempData = dataMap['2m_temperature']?.data || [];
-    const uWindData = dataMap['100m_u_component_of_wind']?.data || [];
-    const vWindData = dataMap['100m_v_component_of_wind']?.data || [];
-    const precipData = dataMap['total_precipitation']?.data || [];
-    const pressureData = dataMap['surface_pressure']?.data || [];
-    const dewpointData = dataMap['2m_dewpoint_temperature']?.data || [];
+    // API response format: { "2m_temperature": { "data": [...], "unit": "K" }, "time": { "data": [...] } }
+    // So dataMap['2m_temperature'] contains the full response, and we need to access the variable key inside it
+    const getVariableData = (variableName: string): number[] => {
+      const response = dataMap[variableName];
+      if (!response) return [];
+      
+      // Try accessing the variable name as a key (nested structure)
+      if (response[variableName]?.data) {
+        return response[variableName].data;
+      }
+      // Try direct data access (flat structure)
+      if (response.data) {
+        return response.data;
+      }
+      return [];
+    };
+
+    const tempData = getVariableData('2m_temperature');
+    const uWindData = getVariableData('100m_u_component_of_wind');
+    const vWindData = getVariableData('100m_v_component_of_wind');
+    const precipData = getVariableData('total_precipitation');
+    const pressureData = getVariableData('surface_pressure');
+    const dewpointData = getVariableData('2m_dewpoint_temperature');
+
+    console.log('Extracted data arrays:', {
+      tempDataLength: tempData.length,
+      tempDataSample: tempData.slice(0, 3),
+      uWindDataLength: uWindData.length,
+      timeDataLength: timeData.length
+    });
 
     // Build forecast array
     const forecast: ForecastHour[] = [];
